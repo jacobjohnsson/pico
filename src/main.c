@@ -184,16 +184,34 @@ int get_window_size (int *rows, int *cols) {
 
 /*** file i/o ***/
 
-void editor_open ()
+void editor_open (char *filename)
 {
-  char *line = "Hello, world!";
-  ssize_t line_len = 13;
+  FILE *fp = fopen (filename, "r");
+  char *line = NULL;
+  size_t line_cap = 0;
+  ssize_t line_len;
 
-  config.row.size = line_len;
-  config.row.chars = malloc (line_len + 1);
-  memcpy (config.row.chars, line, line_len);
-  config.row.chars[line_len] = '\0';
-  config.num_rows = 1;
+  if (!fp) { /* Unable to open file */
+    die ("fopen");
+  }
+
+  line_len = getline (&line, &line_cap, fp);
+
+  if (line_len != -1) {
+    /* Consume until end of line */
+    while (line_len > 0 && (line[line_len - 1] == '\n' ||
+          line[line_len - 1] == '\r')) {
+      line_len--;
+    }
+    config.row.size = line_len;
+    config.row.chars = malloc (line_len + 1);
+    memcpy (config.row.chars, line, line_len);
+    config.row.chars[line_len] = '\0';
+    config.num_rows = 1;
+  }
+
+  free (line);
+  fclose (fp);
 }
 
 /*** append buffer ***/
@@ -355,11 +373,13 @@ void init_editor ()
   }
 }
 
-int main (int argc, char **argv)
+int main (int argc, char *argv[])
 {
   enable_raw_mode ();
   init_editor ();
-  editor_open();
+  if (argc >= 2) {
+    editor_open(argv[1]);
+  }
 
   while (1) {
     refresh_screen ();
