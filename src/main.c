@@ -11,7 +11,7 @@
 
 /*** defines ***/
 
-#define PICO_VERSION "0.0.4"
+#define PICO_VERSION "0.0.5"
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -37,6 +37,7 @@ typedef struct erow {
 
 struct editor_config {
   int cur_x, cur_y;             /* cursor location */
+  int row_offset;               /* current row scrolled to */
   int terminal_rows;            /* terminal height */
   int terminal_cols;            /* terminal width */
   int num_rows;                 /* number of editor rows */
@@ -254,11 +255,22 @@ void ab_free (append_buffer *ab)
 
 /*** output ***/
 
+void scroll ()
+{
+  if (config.cur_y < config.row_offset) {
+    config.row_offset = config.cur_y;
+  }
+  if (config.cur_y >= config.row_offset + config.terminal_rows) {
+    config.row_offset = config.cur_y - config.terminal_rows + 1;
+  }
+}
+
 void draw_rows (append_buffer * ab)
 {
   int y;
   for (y = 0; y < config.terminal_rows; y++) {
-    if (y >= config.num_rows) {
+    int file_row = y + config.row_offset;
+    if (file_row >= config.num_rows) {
       if (config.num_rows == 0 && y == config.terminal_rows / 3) {
         char welcome[80];
         int welcome_len = snprintf (welcome, sizeof (welcome),
@@ -279,9 +291,9 @@ void draw_rows (append_buffer * ab)
         ab_append (ab, "~", 1);
       }
     } else {
-      int len = config.row[y].size;
+      int len = config.row[file_row].size;
       if (len > config.terminal_cols) len = config.terminal_cols;
-      ab_append (ab, config.row[y].chars, len);
+      ab_append (ab, config.row[file_row].chars, len);
     }
 
     ab_append (ab, "\x1b[K", 3);
@@ -293,6 +305,8 @@ void draw_rows (append_buffer * ab)
 
 void refresh_screen ()
 {
+  scroll ();
+
   append_buffer ab = ABUF_INIT;
 
   ab_append (&ab, "\x1b[?25l", 6);
@@ -301,8 +315,8 @@ void refresh_screen ()
   draw_rows (&ab);
 
   char buf[32];
-  snprintf (buf, sizeof (buf), "\x1b[%d;%dH", config.cur_y + 1,
-      config.cur_x + 1);
+  snprintf (buf, sizeof (buf), "\x1b[%d;%dH",
+      (config.cur_y - config.row_offset) + 1, config.cur_x + 1);
   ab_append (&ab, buf, strlen (buf));
 
   ab_append (&ab, "\x1b[?25h", 6);
@@ -332,7 +346,7 @@ void move_cursor (int key)
       }
       break;
     case ARROW_DOWN:
-      if (config.cur_y < config.terminal_rows - 1) {
+      if (config.cur_y < config.num_rows) {
         config.cur_y++;
       }
       break;
@@ -378,6 +392,7 @@ void init_editor ()
 {
   config.cur_x = 0;
   config.cur_y = 0;
+  config.row_offset = 0;
   config.num_rows = 0;
   config.row = NULL;
 
