@@ -1,0 +1,2 @@
+# pico
+A text editor
