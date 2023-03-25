@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -19,7 +20,7 @@ enum editor_key {
   ARROW_RIGHT,
   ARROW_UP,
   ARROW_DOWN,
-  DELETE,
+  DEL_KEY,
   HOME_KEY,
   END_KEY,
   PAGE_UP,
@@ -28,11 +29,19 @@ enum editor_key {
 
 /*** data ***/
 
+/* Stores a line of text */
+typedef struct erow {
+  int size;
+  char *chars;
+} erow;
+
 struct editor_config {
   int cur_x, cur_y;             /* cursor location */
-  struct termios orig_termios;  /* original terminal settings */
   int terminal_rows;            /* terminal height */
   int terminal_cols;            /* terminal width */
+  int num_rows;                 /* number of editor rows */
+  erow row;                     /* editor row */
+  struct termios orig_termios;  /* original terminal settings */
 };
 
 struct editor_config config;
@@ -173,6 +182,20 @@ int get_window_size (int *rows, int *cols) {
   }
 }
 
+/*** file i/o ***/
+
+void editor_open ()
+{
+  char *line = "Hello, world!";
+  ssize_t line_len = 13;
+
+  config.row.size = line_len;
+  config.row.chars = malloc (line_len + 1);
+  memcpy (config.row.chars, line, line_len);
+  config.row.chars[line_len] = '\0';
+  config.num_rows = 1;
+}
+
 /*** append buffer ***/
 
 typedef struct _append_buffer {
@@ -205,24 +228,30 @@ void draw_rows (append_buffer * ab)
 {
   int y;
   for (y = 0; y < config.terminal_rows; y++) {
-    if (y == config.terminal_rows / 3) {
-      char welcome[80];
-      int welcome_len = snprintf (welcome, sizeof (welcome),
-          "Pico editor -- version %s", PICO_VERSION);
-      if (welcome_len > config.terminal_rows) {
-        welcome_len = config.terminal_rows;
-      }
-      int padding = (config.terminal_cols - welcome_len) / 2;
-      if (padding) {
+    if (y >= config.num_rows) {
+      if (y == config.terminal_rows / 3) {
+        char welcome[80];
+        int welcome_len = snprintf (welcome, sizeof (welcome),
+            "Pico editor -- version %s", PICO_VERSION);
+        if (welcome_len > config.terminal_rows) {
+          welcome_len = config.terminal_rows;
+        }
+        int padding = (config.terminal_cols - welcome_len) / 2;
+        if (padding) {
+          ab_append (ab, "~", 1);
+          padding--;
+        }
+        while (padding--) {
+          ab_append (ab, " ", 1);
+        }
+        ab_append (ab, welcome, welcome_len);
+      } else {
         ab_append (ab, "~", 1);
-        padding--;
       }
-      while (padding--) {
-        ab_append (ab, " ", 1);
-      }
-      ab_append (ab, welcome, welcome_len);
     } else {
-      ab_append (ab, "~", 1);
+      int len = config.row.size;
+      if (len > config.terminal_cols) len = config.terminal_cols;
+      ab_append (ab, config.row.chars, len);
     }
 
     ab_append (ab, "\x1b[K", 3);
@@ -319,6 +348,7 @@ void init_editor ()
 {
   config.cur_x = 0;
   config.cur_y = 0;
+  config.num_rows = 0;
 
   if (get_window_size (&config.terminal_rows, &config.terminal_cols) == -1) {
     die ("get_window_size");
@@ -329,6 +359,7 @@ int main (int argc, char **argv)
 {
   enable_raw_mode ();
   init_editor ();
+  editor_open();
 
   while (1) {
     refresh_screen ();
