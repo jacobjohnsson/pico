@@ -11,7 +11,7 @@
 
 /*** defines ***/
 
-#define PICO_VERSION "0.0.2"
+#define PICO_VERSION "0.0.3"
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -247,7 +247,7 @@ void draw_rows (append_buffer * ab)
   int y;
   for (y = 0; y < config.terminal_rows; y++) {
     if (y >= config.num_rows) {
-      if (y == config.terminal_rows / 3) {
+      if (config.num_rows == 0 && y == config.terminal_rows / 3) {
         char welcome[80];
         int welcome_len = snprintf (welcome, sizeof (welcome),
             "Pico editor -- version %s", PICO_VERSION);
