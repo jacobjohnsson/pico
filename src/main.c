@@ -11,7 +11,7 @@
 
 /*** defines ***/
 
-#define PICO_VERSION "0.0.3"
+#define PICO_VERSION "0.0.4"
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -40,7 +40,7 @@ struct editor_config {
   int terminal_rows;            /* terminal height */
   int terminal_cols;            /* terminal width */
   int num_rows;                 /* number of editor rows */
-  erow row;                     /* editor row */
+  erow *row;                    /* editor rows */
   struct termios orig_termios;  /* original terminal settings */
 };
 
@@ -167,7 +167,8 @@ int get_cursor_position (int *rows, int *cols)
   return 0;
 }
 
-int get_window_size (int *rows, int *cols) {
+int get_window_size (int *rows, int *cols)
+{
   struct winsize size;
 
   if (ioctl (STDOUT_FILENO, TIOCGWINSZ, &size) == -1 || size.ws_col == 0) {
@@ -180,6 +181,20 @@ int get_window_size (int *rows, int *cols) {
     *rows = size.ws_row;
     return 0;
   }
+}
+
+/*** row operations ***/
+
+void append_row (char *s, size_t len)
+{
+  config.row = realloc (config.row, sizeof (erow) * (config.num_rows + 1));
+
+  int at = config.num_rows;
+  config.row[at].size = len;
+  config.row[at].chars = malloc (len + 1);
+  memcpy (config.row[at].chars, s, len);
+  config.row[at].chars[len] = '\0';
+  config.num_rows++;
 }
 
 /*** file i/o ***/
@@ -197,17 +212,14 @@ void editor_open (char *filename)
 
   line_len = getline (&line, &line_cap, fp);
 
-  if (line_len != -1) {
+  /* iterate over lines */
+  while ((line_len = getline (&line, &line_cap, fp)) != -1) {
     /* Consume until end of line */
     while (line_len > 0 && (line[line_len - 1] == '\n' ||
           line[line_len - 1] == '\r')) {
       line_len--;
     }
-    config.row.size = line_len;
-    config.row.chars = malloc (line_len + 1);
-    memcpy (config.row.chars, line, line_len);
-    config.row.chars[line_len] = '\0';
-    config.num_rows = 1;
+    append_row (line, line_len);
   }
 
   free (line);
@@ -267,9 +279,9 @@ void draw_rows (append_buffer * ab)
         ab_append (ab, "~", 1);
       }
     } else {
-      int len = config.row.size;
+      int len = config.row[y].size;
       if (len > config.terminal_cols) len = config.terminal_cols;
-      ab_append (ab, config.row.chars, len);
+      ab_append (ab, config.row[y].chars, len);
     }
 
     ab_append (ab, "\x1b[K", 3);
@@ -367,6 +379,7 @@ void init_editor ()
   config.cur_x = 0;
   config.cur_y = 0;
   config.num_rows = 0;
+  config.row = NULL;
 
   if (get_window_size (&config.terminal_rows, &config.terminal_cols) == -1) {
     die ("get_window_size");
