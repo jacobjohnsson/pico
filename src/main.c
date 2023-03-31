@@ -338,7 +338,9 @@ void refresh_screen ()
 
 void move_cursor (int key)
 {
-  erow *row = (config.cur_y >= config.num_rows) ? NULL : &config.row[config.cur_y];
+  erow *row;
+
+  row = (config.cur_y >= config.num_rows) ? NULL : &config.row[config.cur_y];
   switch (key) {
     case ARROW_LEFT:
       if (config.cur_x > 0) {
@@ -360,6 +362,12 @@ void move_cursor (int key)
         config.cur_y++;
       }
       break;
+  }
+
+  row = (config.cur_y >= config.num_rows) ? NULL : &config.row[config.cur_y];
+  int row_len = row ? row->size : 0;
+  if (config.cur_x > row_len) {
+    config.cur_x = row_len;
   }
 }
 
