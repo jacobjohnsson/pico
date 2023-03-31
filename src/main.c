@@ -212,8 +212,6 @@ void editor_open (char *filename)
     die ("fopen");
   }
 
-  line_len = getline (&line, &line_cap, fp);
-
   /* iterate over lines */
   while ((line_len = getline (&line, &line_cap, fp)) != -1) {
     /* Consume until end of line */
