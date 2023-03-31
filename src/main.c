@@ -345,11 +345,17 @@ void move_cursor (int key)
     case ARROW_LEFT:
       if (config.cur_x > 0) {
         config.cur_x--;
+      } else if (config.cur_y > 0) {
+        config.cur_y--;
+        config.cur_x = config.row[config.cur_y].size;
       }
       break;
     case ARROW_RIGHT:
       if (row && config.cur_x < row->size) {
         config.cur_x++;
+      } else if (row && config.cur_x == row->size) {
+        config.cur_y++;
+        config.cur_x = 0;
       }
       break;
     case ARROW_UP:
