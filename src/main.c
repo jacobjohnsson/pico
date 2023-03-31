@@ -38,6 +38,7 @@ typedef struct erow {
 struct editor_config {
   int cur_x, cur_y;             /* cursor location */
   int row_offset;               /* current row scrolled to */
+  int col_offset;               /* current col scrolled to */
   int terminal_rows;            /* terminal height */
   int terminal_cols;            /* terminal width */
   int num_rows;                 /* number of editor rows */
@@ -263,6 +264,12 @@ void scroll ()
   if (config.cur_y >= config.row_offset + config.terminal_rows) {
     config.row_offset = config.cur_y - config.terminal_rows + 1;
   }
+  if (config.cur_x < config.col_offset) {
+    config.col_offset = config.cur_x;
+  }
+  if (config.cur_x >= config.col_offset + config.terminal_cols) {
+    config.col_offset = config.cur_x - config.terminal_cols + 1;
+  }
 }
 
 void draw_rows (append_buffer * ab)
@@ -291,9 +298,10 @@ void draw_rows (append_buffer * ab)
         ab_append (ab, "~", 1);
       }
     } else {
-      int len = config.row[file_row].size;
+      int len = config.row[file_row].size - config.col_offset;
+      if (len < 0) len = 0;
       if (len > config.terminal_cols) len = config.terminal_cols;
-      ab_append (ab, config.row[file_row].chars, len);
+      ab_append (ab, &config.row[file_row].chars[config.col_offset], len);
     }
 
     ab_append (ab, "\x1b[K", 3);
@@ -316,7 +324,8 @@ void refresh_screen ()
 
   char buf[32];
   snprintf (buf, sizeof (buf), "\x1b[%d;%dH",
-      (config.cur_y - config.row_offset) + 1, config.cur_x + 1);
+      (config.cur_y - config.row_offset) + 1,
+      (config.cur_x - config.col_offset) + 1);
   ab_append (&ab, buf, strlen (buf));
 
   ab_append (&ab, "\x1b[?25h", 6);
@@ -329,6 +338,7 @@ void refresh_screen ()
 
 void move_cursor (int key)
 {
+  erow *row = (config.cur_y >= config.num_rows) ? NULL : &config.row[config.cur_y];
   switch (key) {
     case ARROW_LEFT:
       if (config.cur_x > 0) {
@@ -336,7 +346,7 @@ void move_cursor (int key)
       }
       break;
     case ARROW_RIGHT:
-      if (config.cur_x < config.terminal_cols - 1) {
+      if (row && config.cur_x < row->size) {
         config.cur_x++;
       }
       break;
@@ -393,6 +403,7 @@ void init_editor ()
   config.cur_x = 0;
   config.cur_y = 0;
   config.row_offset = 0;
+  config.col_offset = 0;
   config.num_rows = 0;
   config.row = NULL;
 
